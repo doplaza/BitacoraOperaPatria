@@ -2,92 +2,50 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-from datetime import datetime
 import os
+from datetime import datetime
 
-# --- Configuracion general ---
-st.set_page_config(page_title="Bitácora Operativa", layout="wide")
-PASSWORD = "operapatria2025"
+# Cargar datos
+EXCEL_PATH = "Base_Tareas_Operativas_Patria.xlsx"
 DB_PATH = "bitacora_operapatria.db"
 
-# --- Autenticacion ---
-if "auth" not in st.session_state:
-    st.session_state.auth = False
+st.set_page_config(page_title="Bitácora Operativa", layout="wide")
 
-if not st.session_state.auth:
-    with st.form("login"):
-        st.title("🔐 Acceso a Bitácora Operativa")
-        password = st.text_input("Contraseña", type="password")
-        submitted = st.form_submit_button("Ingresar")
-        if submitted:
-            if password == PASSWORD:
-                st.session_state.auth = True
-            else:
-                st.error("Contraseña incorrecta")
-    st.stop()
+st.title("Bitácora Operativa - Plaza Patria / Vía Viva")
 
-# --- Cargar base de datos ---
-conn = sqlite3.connect(DB_PATH)
-cursor = conn.cursor()
-df = pd.read_sql_query("SELECT rowid, * FROM tareas", conn)
+# Cargar datos desde Excel
+df = pd.read_excel(EXCEL_PATH)
 
-# --- Filtros ---
-st.sidebar.title("Filtros")
-plaza = st.sidebar.selectbox("Plaza", ["Todas"] + sorted(df["plaza"].unique().tolist()))
-area = st.sidebar.selectbox("Área", ["Todas"] + sorted(df["area"].dropna().unique().tolist()))
-estatus = st.sidebar.selectbox("Estatus", ["Todos", "Pendiente", "En proceso", "Completado", "Vencido"])
+# Limpiar nombres de columnas
+df.columns = df.columns.astype(str)
+df.columns = df.columns.str.strip().str.replace(r"[\n\r\t]+", "", regex=True).str.lower()
 
-# --- Aplicar filtros ---
-if plaza != "Todas":
-    df = df[df["plaza"] == plaza]
-if area != "Todas":
-    df = df[df["area"] == area]
-if estatus != "Todos":
-    df = df[df["estatus"] == estatus]
+# Sidebar
+plazas = ["Todas"] + sorted(df["plaza"].dropna().unique().tolist())
+plaza_select = st.sidebar.selectbox("Selecciona plaza", plazas)
 
-# --- Mostrar tabla con colores de vencimiento ---
-def color_row(row):
-    try:
-        if row["estatus"] != "Completado" and pd.to_datetime(row["fecha_compromiso"]) < datetime.now():
-            return ["background-color: #ffcccc"] * len(row)
-        else:
-            return [""] * len(row)
-    except:
-        return [""] * len(row)
+if plaza_select != "Todas":
+    df = df[df["plaza"] == plaza_select]
 
-st.title("📋 Bitácora Operativa - Vista General")
-st.dataframe(df.style.apply(color_row, axis=1), use_container_width=True)
+# Mostrar datos
+st.dataframe(df)
 
-# --- Formulario para actualizar tarea ---
-st.markdown("---")
-st.subheader("✏️ Actualizar tarea")
-selected_id = st.selectbox("Selecciona el ID de tarea a actualizar", df["rowid"])
-selected_task = df[df["rowid"] == selected_id].iloc[0]
+# Conexión a SQLite para tareas completadas (opcional)
+if os.path.exists(DB_PATH):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
 
-with st.form("update_form"):
-    nuevo_estatus = st.selectbox("Nuevo estatus", ["Pendiente", "En proceso", "Completado", "Vencido"],
-                                 index=["Pendiente", "En proceso", "Completado", "Vencido"].index(selected_task["estatus"])
-                                 if selected_task["estatus"] in ["Pendiente", "En proceso", "Completado", "Vencido"] else 0)
-    nueva_fecha = st.date_input("Fecha de cumplimiento", value=datetime.now())
-    observaciones = st.text_area("Observaciones", value=selected_task["observaciones"] if pd.notna(selected_task["observaciones"]) else "")
-    evidencia_files = st.file_uploader("Sube archivos de evidencia (puedes subir varios)", accept_multiple_files=True)
-    submit_update = st.form_submit_button("Guardar cambios")
+    cur.execute("CREATE TABLE IF NOT EXISTS tareas_cumplidas (id_tarea TEXT PRIMARY KEY, fecha_cumplimiento TEXT)")
+    conn.commit()
 
-    if submit_update:
-        folder = f"evidencias/tarea_{selected_id}"
-        os.makedirs(folder, exist_ok=True)
-        paths = []
-        for file in evidencia_files:
-            path = os.path.join(folder, file.name)
-            with open(path, "wb") as f:
-                f.write(file.getbuffer())
-            paths.append(path)
-
-        evidencia_str = "; ".join(paths)
-        cursor.execute("""
-            UPDATE tareas
-            SET estatus = ?, fecha_cumplimiento = ?, observaciones = ?, evidencia = ?
-            WHERE rowid = ?
-        """, (nuevo_estatus, nueva_fecha.strftime("%Y-%m-%d"), observaciones, evidencia_str, selected_id))
-        conn.commit()
-        st.success("Tarea actualizada correctamente.")
+    st.sidebar.markdown("### Marcar tarea como cumplida")
+    tarea_id = st.sidebar.text_input("ID de tarea")
+    if st.sidebar.button("Marcar cumplida"):
+        fecha = datetime.today().strftime("%Y-%m-%d")
+        try:
+            cur.execute("INSERT OR REPLACE INTO tareas_cumplidas (id_tarea, fecha_cumplimiento) VALUES (?, ?)", (tarea_id, fecha))
+            conn.commit()
+            st.success(f"Tarea {tarea_id} marcada como cumplida")
+        except Exception as e:
+            st.error(f"Error: {e}")
+    conn.close()
