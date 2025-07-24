@@ -2,65 +2,41 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import os
 
-# Configuración general
-st.set_page_config(page_title="Bitácora Operativa Patria", layout="wide")
-st.title("📋 Bitácora Operativa de Plaza Patria")
+st.set_page_config(page_title="Bitácora Operativa", layout="wide")
 
-DB_PATH = "bitacora_operapatria_con_id.db"
-
-# Función para conectar a SQLite
-def get_connection(path=DB_PATH):
-    return sqlite3.connect(path)
-
-# Cargar datos actuales
+# Función para cargar los datos
 def load_data():
-    conn = get_connection()
+    conn = sqlite3.connect("bitacora_operapatria_con_id.db")
     df = pd.read_sql_query("SELECT * FROM tareas", conn)
     conn.close()
     return df
 
-# Actualizar campos desde Excel maestro
-def update_from_excel(uploaded_file):
-    try:
-        df_update = pd.read_excel(uploaded_file)
-        if "id_tarea" not in df_update.columns:
-            st.error("El archivo debe contener la columna 'id_tarea'.")
-            return None
-
-        with get_connection() as conn:
-            df_actual = pd.read_sql_query("SELECT * FROM tareas", conn)
-            df_actual.set_index("id_tarea", inplace=True)
-
-            updated_count = 0
-            for _, row in df_update.iterrows():
-                id_tarea = row["id_tarea"]
-                if id_tarea in df_actual.index:
-                    for campo in ["Responsable", "Fecha Compromiso", "Fecha Cumplimiento"]:
-                        if campo in row and pd.notna(row[campo]):
-                            df_actual.at[id_tarea, campo] = row[campo]
-                            updated_count += 1
-
-            df_actual.reset_index(inplace=True)
-            df_actual.to_sql("tareas", conn, if_exists="replace", index=False)
-
-        st.success(f"Actualización completa. Se actualizaron {updated_count} campos.")
-    except Exception as e:
-        st.exception(e)
-
-# Mostrar datos actuales
-st.subheader("🔎 Datos actuales")
 df = load_data()
+
+# Sidebar - Filtros
+st.sidebar.title("Filtros")
+
+# Aseguramos que el DataFrame tenga datos
+if not df.empty:
+    plazas = ["Todas"] + sorted(df["plaza"].dropna().unique().tolist())
+    areas = ["Todas"] + sorted(df["area"].dropna().unique().tolist())
+    estatuses = ["Todos"] + sorted(df["estatus"].dropna().unique().tolist())
+
+    plaza = st.sidebar.selectbox("Plaza", plazas)
+    area = st.sidebar.selectbox("Área", areas)
+    estatus = st.sidebar.selectbox("Estatus", estatuses)
+
+    # Aplicar filtros
+    if plaza != "Todas":
+        df = df[df["plaza"] == plaza]
+    if area != "Todas":
+        df = df[df["area"] == area]
+    if estatus != "Todos":
+        df = df[df["estatus"] == estatus]
+else:
+    st.sidebar.warning("No hay datos disponibles para mostrar filtros.")
+
+# Mostrar tabla
+st.title("Bitácora Operativa")
 st.dataframe(df, use_container_width=True)
-
-# Subida de archivo maestro para actualización
-st.subheader("⬆️ Cargar Excel maestro")
-uploaded_file = st.file_uploader("Selecciona el archivo Excel para actualizar tareas", type=["xlsx"])
-if uploaded_file:
-    with st.expander("📄 Vista previa del archivo cargado"):
-        df_preview = pd.read_excel(uploaded_file)
-        st.dataframe(df_preview, use_container_width=True)
-
-    if st.button("✅ Actualizar base de datos"):
-        update_from_excel(uploaded_file)
