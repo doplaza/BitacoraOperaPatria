@@ -1,8 +1,27 @@
+# Archivos sensibles
 .env
-.DS_Store
-*.pyc
-__pycache__/
 
+# Archivos temporales del sistema
+.DS_Store
+
+# Compilaciones de Python
+__pycache__/
+*.pyc
+
+# Bases de datos auxiliares o de pruebas
+bitacora_operapatria_con.db
+
+# Archivos que no deben subirse
 *.zip
-*.db
-.env
+KPI Plaza Patria Operaciones.xlsx
+Base_Maestra_Tareas_Operativas_Patria.xlsx
+github_push_multi_v2.py
+github_push_streamlit_patch.py
+organizar_repo_bitacora.sh
+
+# Carpeta auxiliar
+auxiliar/
+
+# Archivos de ejecución local
+*.log
+
