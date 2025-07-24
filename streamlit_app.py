@@ -1,32 +1,51 @@
+
 import streamlit as st
 import pandas as pd
 import sqlite3
 import os
+from datetime import datetime
 
 # Cargar datos
-archivo = "Base_Tareas_Operativas_Patria.xlsx"
-if not os.path.exists(archivo):
-    st.error(f"Archivo {archivo} no encontrado.")
-    st.stop()
+EXCEL_PATH = "Base_Tareas_Operativas_Patria.xlsx"
+DB_PATH = "bitacora_operapatria.db"
 
-df = pd.read_excel(archivo)
+st.set_page_config(page_title="Bitácora Operativa", layout="wide")
 
-# Normaliza los nombres de las columnas
-df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
+st.title("Bitácora Operativa - Plaza Patria / Vía Viva")
 
-# Revisa que esté la columna 'plaza'
-if "plaza" not in df.columns:
-    st.error("La columna 'plaza' no se encuentra en el archivo.")
-    st.write("Columnas encontradas:", df.columns.tolist())
-    st.stop()
+# Cargar datos desde Excel
+df = pd.read_excel(EXCEL_PATH)
 
-# Filtros
+# Limpiar nombres de columnas
+df.columns = df.columns.astype(str)
+df.columns = df.columns.str.strip().str.replace(r"[\n\r\t]+", "", regex=True).str.lower()
+
+# Sidebar
 plazas = ["Todas"] + sorted(df["plaza"].dropna().unique().tolist())
-plaza_seleccionada = st.sidebar.selectbox("Selecciona la plaza", plazas)
+plaza_select = st.sidebar.selectbox("Selecciona plaza", plazas)
 
-# Aplica el filtro
-if plaza_seleccionada != "Todas":
-    df = df[df["plaza"] == plaza_seleccionada]
+if plaza_select != "Todas":
+    df = df[df["plaza"] == plaza_select]
 
-st.title("Bitácora Opera Patria")
+# Mostrar datos
 st.dataframe(df)
+
+# Conexión a SQLite para tareas completadas (opcional)
+if os.path.exists(DB_PATH):
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    cur.execute("CREATE TABLE IF NOT EXISTS tareas_cumplidas (id_tarea TEXT PRIMARY KEY, fecha_cumplimiento TEXT)")
+    conn.commit()
+
+    st.sidebar.markdown("### Marcar tarea como cumplida")
+    tarea_id = st.sidebar.text_input("ID de tarea")
+    if st.sidebar.button("Marcar cumplida"):
+        fecha = datetime.today().strftime("%Y-%m-%d")
+        try:
+            cur.execute("INSERT OR REPLACE INTO tareas_cumplidas (id_tarea, fecha_cumplimiento) VALUES (?, ?)", (tarea_id, fecha))
+            conn.commit()
+            st.success(f"Tarea {tarea_id} marcada como cumplida")
+        except Exception as e:
+            st.error(f"Error: {e}")
+    conn.close()
