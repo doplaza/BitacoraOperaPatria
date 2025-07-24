@@ -69,7 +69,7 @@ with st.form("update_form"):
                                  index=["Pendiente", "En proceso", "Completado", "Vencido"].index(selected_task["Estatus"])
                                  if selected_task["Estatus"] in ["Pendiente", "En proceso", "Completado", "Vencido"] else 0)
     nueva_fecha = st.date_input("Fecha de cumplimiento", value=datetime.now())
-    observaciones = st.text_area("Observaciones", value=selected_task["observaciones"] if pd.notna(selected_task["observaciones"]) else "")
+    observaciones = st.text_area("Observaciones", value=selected_task["Observaciones"] if pd.notna(selected_task["Observaciones"]) else "")
     evidencia_files = st.file_uploader("Sube archivos de evidencia (puedes subir varios)", accept_multiple_files=True)
     submit_update = st.form_submit_button("Guardar cambios")
 
