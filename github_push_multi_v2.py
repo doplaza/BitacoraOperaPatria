@@ -17,11 +17,11 @@ LOCAL_DIR = "/Users/ra/Documents/PP/WADMIN"
 g = Github(GITHUB_TOKEN)
 repo = g.get_repo(REPO_NAME)
 
-# Archivos a subir (todos los archivos del directorio excepto los ignorados)
+# Archivos a ignorar
 archivos_ignorados = [".env", ".DS_Store", "__pycache__"]
 extensiones_ignoradas = [".pyc"]
 
-# Carga los archivos locales
+# Subir archivos
 for root, dirs, files in os.walk(LOCAL_DIR):
     for filename in files:
         if filename in archivos_ignorados or any(filename.endswith(ext) for ext in extensiones_ignoradas):
@@ -29,19 +29,28 @@ for root, dirs, files in os.walk(LOCAL_DIR):
 
         filepath = os.path.join(root, filename)
         relative_path = os.path.relpath(filepath, LOCAL_DIR)
+
+        # Verifica que el archivo no esté vacío
+        if os.path.getsize(filepath) == 0:
+            print(f"⚠️ Archivo vacío (omitido): {relative_path}")
+            continue
+
         with open(filepath, "rb") as f:
             content = f.read()
 
+        print(f"📦 Procesando archivo: {relative_path} ({len(content)} bytes)")
         commit_message = f"Archivo actualizado: {relative_path}"
 
         try:
-            # Revisa si ya existe el archivo
+            # Si ya existe, lo actualiza
             contents = repo.get_contents(relative_path)
             repo.update_file(contents.path, commit_message, content, contents.sha)
-            print(f"Archivo actualizado: {relative_path}")
-        except Exception as e:
+            print(f"✅ Archivo actualizado: {relative_path}")
+        except Exception:
             try:
+                # Si no existe, lo crea
                 repo.create_file(relative_path, commit_message, content)
-                print(f"Archivo creado: {relative_path}")
+                print(f"🆕 Archivo creado: {relative_path}")
             except Exception as e:
-                print(f"Error al subir {relative_path}: {e}")
+                print(f"❌ Error al subir {relative_path}: {e}")
+
