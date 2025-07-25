@@ -10,7 +10,7 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 # Configura tu repositorio y archivo
 REPO_NAME = "doplaza/BitacoraOperaPatria"
 FILE_PATH = "BitacoraOperaPatria/streamlit_app.py"
-LOCAL_PATH = f"/Users/ra/Documents/PP/WADMIN/{FILE_PATH}"
+LOCAL_PATH = "/Users/ra/Documents/PP/WADMIN/streamlit_app.py"
 COMMIT_MESSAGE = "🔧 Limpieza de columnas para evitar errores KeyError por 'Plaza'"
 
 # Inicializa conexión a GitHub
